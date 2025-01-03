@@ -13,6 +13,22 @@ The main goal of this project is to learn the Rust programming language and mast
 
 ## Lexer
 
+### Token Types
+
+The Lexer recognizes the following token types:
+
+- Comment: Represents comments in the code
+- Variable: Represents variable names
+- Number: Represents numeric values
+- Plus: Represents the addition operator (+)
+- Minus: Represents the subtraction operator (-)
+- Multiply: Represents the multiplication operator (*)
+- Divide: Represents the division operator (/)
+- Equals: Represents the assignment operator (=)
+- EndOfLine: Represents the end of a line
+
+Each token type is associated with a regular expression for matching.
+
 The Lexer is responsible for breaking down the input code into tokens. It supports the following token types:
 
 - Comments
