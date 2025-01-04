@@ -6,8 +6,8 @@ My Lang is a project aimed at creating a custom programming language lexer using
 
 The main components of the project are:
 
-1. A [Lexer](cci:2://file:///home/dmitry/RustroverProjects/my-lang/src/lexer.rs:38:0-42:1) struct that tokenizes input code
-2. A [LexerFsm](cci:2://file:///home/dmitry/RustroverProjects/my-lang/src/lexer_fsm.rs:2:0-6:1) (Finite State Machine) struct that manages the lexer's state
+1. A [Lexer](src/lexer.rs) struct that tokenizes input code
+2. A [LexerFsm](src/lexer_fsm.rs) (Finite State Machine) struct that manages the lexer's state
 3. Various token types representing different elements of the language
 
 ### Goal
