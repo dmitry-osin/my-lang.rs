@@ -1,26 +1,19 @@
-use regex::Regex;
-
-// Constants
-const PLUS: char = '+';
-const MINUS: char = '-';
-const MULTIPLY: char = '*';
-const DIVIDE: char = '/';
-const EQUALS: char = '=';
-const END_OF_LINE: char = '\n';
-const COMMENT: char = '#';
-
 /// Represents the type of token
 #[derive(Debug)]
 pub(crate) enum TokenType {
-    Comment(Regex),
-    Variable(Regex),
-    Number(Regex),
-    Plus(Regex),
-    Minus(Regex),
-    Multiply(Regex),
-    Divide(Regex),
-    Equals(Regex),
-    EndOfLine(Regex),
+    Comment,
+    Variable,
+    Number,
+    Plus,
+    Minus,
+    Multiply,
+    Divide,
+    Space,
+    LeftParenthesis,
+    RightParenthesis,
+    Equals,
+    EndOfLine,
+    Unknown,
 }
 
 /// Represents a token
@@ -28,93 +21,229 @@ pub(crate) enum TokenType {
 pub(crate) struct Token {
     pub(crate) token_type: TokenType,
     pub(crate) value: String,
-    pub(crate) position: i32,
-    pub(crate) line: i32,
 }
 
-
-impl Token {
-    /// Creates a new `Token` instance.
-    ///
-    /// # Arguments
-    ///
-    /// * `token_type` - The type of the token, represented by the `TokenType` enum.
-    /// * `value` - The string value of the token.
-    /// * `position` - The position of the token within the line.
-    /// * `line` - The line number where the token is located.
-    ///
-    /// # Returns
-    ///
-    /// A new `Token` instance with the specified properties.
-    fn new(token_type: TokenType, value: String, position: i32, line: i32) -> Self {
-        Token {
-            token_type,
-            value,
-            position,
-            line,
-        }
-    }
+/// Represents the state of the lexer
+#[derive(Debug)]
+pub(crate) enum State {
+    Start,
+    InNumber,
+    InVariable,
+    InComment,
+    Done,
 }
 
+/// Represents the lexer
 pub(crate) struct Lexer {
-    code: String,
+    symbols: Vec<char>,
+    position: usize,
+    current_state: State,
 }
 
 impl Lexer {
-
-    pub(crate) fn new(code: String) -> Self {
+    pub(crate) fn new(input: &str) -> Self {
         Lexer {
-            code,
+            symbols: input.chars().collect(),
+            position: 0,
+            current_state: State::Start,
         }
     }
 
-    /// Tokenize the code into a vector of vectors of tokens, where each inner
-    /// vector represents a line in the code and contains the tokens for that
-    /// line.
-    pub(crate) fn tokenize(&self) -> Vec<Vec<Token>> {
-        let mut tokens: Vec<Vec<Token>> = Vec::new();
-
-        for (l_idx, line) in self.code.lines().enumerate() {
-            let mut position: i32 = 0;
-
-            if line.is_empty() { continue }
-
-            let mut segment: Vec<Token> = Vec::new();
-            let mut is_comment = false;
-            for char in line.chars() {
-                if char.is_whitespace() { continue }
-                if is_comment { continue }
-                if char == COMMENT { is_comment = true; continue }
-
-                let token_type = self.match_token(char);
-                position += 1;
-                segment.push(Token::new(token_type, char.to_string(), position, l_idx as i32));
+    /// Tokenize the input string and return a vector of tokens. The tokenization process depends on the
+    /// current state of the lexer, which is determined by the type of the current character.
+    ///
+    /// The following states are supported:
+    ///
+    /// - `State::Start`: The lexer is at the start of the input string.
+    /// - `State::InNumber`: The lexer is currently processing a number.
+    /// - `State::InVariable`: The lexer is currently processing a variable name.
+    /// - `State::InComment`: The lexer is currently processing a comment.
+    /// - `State::Done`: The lexer has finished processing the input string.
+    pub(crate) fn tokenize(&mut self) -> Vec<Token> {
+        let mut tokens: Vec<Token> = Vec::new();
+        while self.position < self.symbols.len() {
+            match self.current_state {
+                State::Start => self.handle_start_state(&mut tokens),
+                State::InNumber => self.handle_in_number_state(&mut tokens),
+                State::InVariable => self.handle_in_variable_state(&mut tokens),
+                State::InComment => self.handle_in_comment_state(&mut tokens),
+                State::Done => break,
             }
-            tokens.push(segment);
         }
         tokens
     }
 
-    /// Matches a character to a token type.
+    /// Handle the start state of the lexer.
     ///
-    /// Matches a character to a token type based on the type of character. If
-    /// the character is a digit, it is matched to a number token type. If the
-    /// character is a letter or underscore, it is matched to a variable token
-    /// type. If the character is a comment, it is matched to a comment token
-    /// type. Otherwise, the character is matched to a token type based on the
-    /// operator it represents.
-    fn match_token(&self, char: char) -> TokenType {
-        let token_type = match char {
-            PLUS => TokenType::Plus(Regex::new(r"\+").unwrap()),
-            MINUS => TokenType::Minus(Regex::new(r"-").unwrap()),
-            MULTIPLY => TokenType::Multiply(Regex::new(r"\*").unwrap()),
-            DIVIDE => TokenType::Divide(Regex::new(r"/").unwrap()),
-            EQUALS => TokenType::Equals(Regex::new(r"=").unwrap()),
-            END_OF_LINE => TokenType::EndOfLine(Regex::new(r"\n").unwrap()),
-            '0'..='9' => TokenType::Number(Regex::new(r"[0-9]").unwrap()),
-            COMMENT => TokenType::Comment(Regex::new(r"#.*").unwrap()),
-            _ => TokenType::Variable(Regex::new(r"[a-zA-Z_]").unwrap()),
-        };
-        token_type
+    /// This function is responsible for handling the start state of the lexer. It matches the current
+    /// character and transitions to the appropriate state.
+    ///
+    /// The following transitions are supported:
+    ///
+    /// - `State::InNumber`: The current character is a digit.
+    /// - `State::InVariable`: The current character is a letter.
+    /// - `State::InComment`: The current character is `#`.
+    /// - `State::Done`: The current character is the end of the input string.
+    ///
+    fn handle_start_state(&mut self, tokens: &mut Vec<Token>) {
+        match self.symbols[self.position] {
+            '0'..='9' => {
+                self.current_state = State::InNumber;
+            }
+            '+' => {
+                tokens.push(Token {
+                    token_type: TokenType::Plus,
+                    value: '+'.to_string(),
+                });
+                self.position += 1;
+            }
+            '-' => {
+                tokens.push(Token {
+                    token_type: TokenType::Minus,
+                    value: '-'.to_string(),
+                });
+                self.position += 1;
+            }
+            '*' => {
+                tokens.push(Token {
+                    token_type: TokenType::Multiply,
+                    value: '*'.to_string(),
+                });
+                self.position += 1;
+            }
+            '/' => {
+                tokens.push(Token {
+                    token_type: TokenType::Divide,
+                    value: '/'.to_string(),
+                });
+                self.position += 1;
+            }
+            '=' => {
+                tokens.push(Token {
+                    token_type: TokenType::Equals,
+                    value: '='.to_string(),
+                });
+                self.position += 1;
+            }
+            ' ' => {
+                tokens.push(Token {
+                    token_type: TokenType::Space,
+                    value: ' '.to_string(),
+                });
+                self.position += 1;
+            }
+            '(' => {
+                tokens.push(Token {
+                    token_type: TokenType::LeftParenthesis,
+                    value: '('.to_string(),
+                });
+                self.position += 1;
+            }
+            ')' => {
+                tokens.push(Token {
+                    token_type: TokenType::RightParenthesis,
+                    value: ')'.to_string(),
+                });
+                self.position += 1;
+            }
+            '#' => {
+                self.current_state = State::InComment;
+            }
+            'A'..='Z' | 'a'..='z' => {
+                self.current_state = State::InVariable;
+            }
+            '\n' => {
+                tokens.push(Token {
+                    token_type: TokenType::EndOfLine,
+                    value: '\n'.to_string(),
+                });
+                self.position += 1;
+            }
+            _ => {
+                tokens.push(Token {
+                    token_type: TokenType::Unknown,
+                    value: self.symbols[self.position].to_string(),
+                });
+                self.position += 1;
+            }
+        }
+    }
+
+    /// Handle the `State::InNumber` state of the lexer.
+    ///
+    /// This function is responsible for handling the `State::InNumber` state of the lexer. It matches
+    /// the current character and transitions to the appropriate state.
+    ///
+    /// The following transitions are supported:
+    ///
+    /// - `State::Start`: The current character is not a digit.
+    fn handle_in_number_state(&mut self, tokens: &mut Vec<Token>) {
+        let start = self.position;
+        while self.position < self.symbols.len() && self.symbols[self.position].is_digit(10) {
+            self.position += 1;
+        }
+        let number = self.symbols[start..self.position]
+            .iter()
+            .collect::<String>();
+
+        tokens.push(Token {
+            token_type: TokenType::Number,
+            value: number,
+        });
+        self.current_state = State::Start;
+    }
+
+    /// Handle the `State::InVariable` state of the lexer.
+    ///
+    /// This function is responsible for handling the `State::InVariable` state of the lexer. It matches
+    /// the current character and transitions to the appropriate state.
+    ///
+    /// The following transitions are supported:
+    ///
+    /// - `State::Start`: The current character is not a letter.
+    fn handle_in_variable_state(&mut self, tokens: &mut Vec<Token>) {
+        let start = self.position;
+        while self.position < self.symbols.len()
+            && self.symbols[self.position].is_ascii_alphabetic()
+        {
+            self.position += 1;
+        }
+        let variable = self.symbols[start..self.position]
+            .iter()
+            .collect::<String>();
+
+        tokens.push(Token {
+            token_type: TokenType::Variable,
+            value: variable,
+        });
+        self.current_state = State::Start;
+    }
+
+    /// Handle the `State::InComment` state of the lexer.
+    ///
+    /// This function is responsible for handling the `State::InComment` state of the lexer. It matches
+    /// the current character and transitions to the appropriate state.
+    ///
+    /// The following transitions are supported:
+    ///
+    /// - `State::Start`: The current character is a newline.
+    fn handle_in_comment_state(&mut self, tokens: &mut Vec<Token>) {
+        let start = self.position;
+        while self.position < self.symbols.len() {
+            if self.symbols[self.position] == '\n' {
+                self.position += 1;
+                break;
+            }
+            self.position += 1;
+        }
+        let comment = self.symbols[start..self.position]
+            .iter()
+            .collect::<String>();
+
+        tokens.push(Token {
+            token_type: TokenType::Comment,
+            value: comment,
+        });
+        self.current_state = State::Start;
     }
 }
