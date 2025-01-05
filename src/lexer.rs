@@ -228,17 +228,21 @@ impl Lexer {
     ///
     /// - `State::Start`: The current character is a newline.
     fn handle_in_comment_state(&mut self, tokens: &mut Vec<Token>) {
-        let start = self.position;
+        let mut start = self.position;
         while self.position < self.symbols.len() {
             if self.symbols[self.position] == '\n' {
-                self.position += 1;
                 break;
+            }
+            if self.symbols[self.position] == '#' {
+                start += 1;
             }
             self.position += 1;
         }
         let comment = self.symbols[start..self.position]
             .iter()
-            .collect::<String>();
+            .collect::<String>()
+            .trim()
+            .to_string();
 
         tokens.push(Token {
             token_type: TokenType::Comment,
